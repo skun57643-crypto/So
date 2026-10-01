@@ -1,0 +1,234 @@
+-- ===================================================
+--                    SIM HUB
+--              Fixed / Stable Version
+-- ===================================================
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "SIM HUB",
+    LoadingTitle = "SIM HUB Loading...",
+    LoadingSubtitle = "by Assistant",
+    ConfigurationSaving = {
+        Enabled = false
+    },
+    Discord = {
+        Enabled = false
+    },
+    KeySystem = false
+})
+
+local MainTab = Window:CreateTab("Main Features", 4483362458)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+
+local LocalPlayer = Players.LocalPlayer
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+-- ===================================================
+--                    CONFIG
+-- ===================================================
+
+-- เพิ่ม "Hawk" เข้าในรายการบอสเรียบร้อยแล้ว
+local BossList = {
+    "Coyote",
+    "EvilMom",
+    "Toji",
+    "Decayer",
+    "Hawk"
+}
+
+local AutoBuy = false
+local AutoAttackAll = false
+local AutoAttackSingle = false
+
+local SelectedAttackBoss = "Coyote"
+local AttackDelay = 0.1
+
+-- ป้องกันการสร้างลูปซ้อน
+local BuyLoopRunning = false
+local AttackAllLoopRunning = false
+local AttackSingleLoopRunning = false
+
+-- ===================================================
+--                    ANTI AFK
+-- ===================================================
+
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new(0, 0))
+end)
+
+-- ===================================================
+--              HELPER FUNCTIONS
+-- ===================================================
+
+local function GetRemote(RemoteName)
+    local Remote = Remotes:FindFirstChild(RemoteName)
+
+    if not Remote then
+        warn("[SIM HUB] Remote ไม่พบ:", RemoteName)
+        return nil
+    end
+
+    return Remote
+end
+
+-- ===================================================
+--                 AUTO BUY SHOP
+-- ===================================================
+
+MainTab:CreateSection("1. ซื้อของ (Buy All Shop)")
+
+MainTab:CreateToggle({
+    Name = "Auto Buy All Shop (ซื้อของทั้งหมด)",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+
+    Callback = function(Value)
+        AutoBuy = Value
+
+        if not AutoBuy then
+            return
+        end
+
+        -- ป้องกันลูปซ้อน
+        if BuyLoopRunning then
+            return
+        end
+
+        BuyLoopRunning = true
+
+        task.spawn(function()
+            while AutoBuy do
+                pcall(function()
+                    local Remote = GetRemote("BuyAllShopRemote")
+
+                    if Remote then
+                        Remote:FireServer()
+                    end
+                end)
+
+                task.wait(1)
+            end
+
+            BuyLoopRunning = false
+        end)
+    end,
+})
+
+-- ===================================================
+--                 AUTO ATTACK ALL
+-- ===================================================
+
+MainTab:CreateSection("2. ตีบอส (World Boss Click Damage)")
+
+MainTab:CreateToggle({
+    Name = "Auto Attack ALL Bosses (ตีบอสทั้งหมด)",
+    CurrentValue = false,
+    Flag = "AutoAttackAllToggle",
+
+    Callback = function(Value)
+        AutoAttackAll = Value
+
+        if not AutoAttackAll then
+            return
+        end
+
+        -- ป้องกันลูปซ้อน
+        if AttackAllLoopRunning then
+            return
+        end
+
+        AttackAllLoopRunning = true
+
+        task.spawn(function()
+            while AutoAttackAll do
+                local Remote = GetRemote("WorldBossClickDamageRemote")
+
+                if Remote then
+                    for _, BossName in ipairs(BossList) do
+                        if not AutoAttackAll then
+                            break
+                        end
+
+                        pcall(function()
+                            Remote:FireServer(BossName)
+                        end)
+
+                        -- หน่วงระหว่างบอสแต่ละตัว
+                        task.wait(AttackDelay)
+                    end
+                end
+
+                task.wait(AttackDelay)
+            end
+
+            AttackAllLoopRunning = false
+        end)
+    end,
+})
+
+-- ===================================================
+--                 BOSS DROPDOWN & SINGLE ATTACK
+-- ===================================================
+
+MainTab:CreateDropdown({
+    Name = "เลือกบอสที่ต้องการตี (Single)",
+    Options = BossList,
+    CurrentOption = {"Coyote"},
+    MultipleOptions = false,
+    Flag = "AttackBossDropdown",
+
+    Callback = function(Option)
+        if typeof(Option) == "table" then
+            SelectedAttackBoss = Option[1]
+        else
+            SelectedAttackBoss = Option
+        end
+
+        -- ป้องกันค่า nil
+        if not SelectedAttackBoss then
+            SelectedAttackBoss = "Coyote"
+        end
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "Auto Attack Selected Boss (ตีบอสตัวที่เลือก)",
+    CurrentValue = false,
+    Flag = "AutoAttackSingleToggle",
+
+    Callback = function(Value)
+        AutoAttackSingle = Value
+
+        if not AutoAttackSingle then
+            return
+        end
+
+        -- ป้องกันลูปซ้อน
+        if AttackSingleLoopRunning then
+            return
+        end
+
+        AttackSingleLoopRunning = true
+
+        task.spawn(function()
+            while AutoAttackSingle do
+                local Remote = GetRemote("WorldBossClickDamageRemote")
+
+                if Remote and SelectedAttackBoss then
+                    pcall(function()
+                        Remote:FireServer(SelectedAttackBoss)
+                    end)
+                end
+
+                task.wait(AttackDelay)
+            end
+
+            AttackSingleLoopRunning = false
+        end)
+    end,
+})
